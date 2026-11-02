@@ -949,7 +949,9 @@ void libvisio::VSDXMLParserBase::readShape(xmlTextReaderPtr reader)
   unsigned fillStyle =  fillStyleString ? (unsigned)xmlStringToLong(fillStyleString) : MINUS_ONE;
   unsigned textStyle =  textStyleString ? (unsigned)xmlStringToLong(textStyleString) : MINUS_ONE;
 
-  if (masterPage != MINUS_ONE || masterShape != MINUS_ONE)
+  // A shape of a master's group (MasterShape alone) is of its group's master; a shape with a
+  // Master of its own keeps it (a master's instance inside a group of other shapes).
+  if (masterPage == MINUS_ONE && masterShape != MINUS_ONE)
   {
     if (!m_shapeStack.empty())
       masterPage = m_shapeStack.top().m_masterPage;
