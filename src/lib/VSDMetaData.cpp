@@ -14,7 +14,6 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
-#include <unicode/ucnv.h>
 #include <ctime>
 
 libvisio::VSDMetaData::VSDMetaData()
@@ -264,32 +263,10 @@ librevenge::RVNGString libvisio::VSDMetaData::readCodePageString(librevenge::RVN
   }
   else
   {
-    UErrorCode status = U_ZERO_ERROR;
-    UConverter *conv = nullptr;
-
-    switch (codepage)
-    {
-    case 1252:
-      // http://msdn.microsoft.com/en-us/goglobal/bb964654
-      conv = ucnv_open("windows-1252", &status);
-      break;
-    }
-
-    if (U_SUCCESS(status) && conv)
-    {
-      assert(!characters.empty());
-      const auto *src = (const char *)characters.data();
-      const char *srcLimit = (const char *)src + characters.size();
-      while (src < srcLimit)
-      {
-        UChar32 ucs4Character = ucnv_getNextUChar(conv, &src, srcLimit, &status);
-        if (U_SUCCESS(status) && U_IS_UNICODE_CHAR(ucs4Character))
-          appendUCS4(string, ucs4Character);
-      }
-    }
-
-    if (conv)
-      ucnv_close(conv);
+    // http://msdn.microsoft.com/en-us/goglobal/bb964654
+    char name[16];
+    snprintf(name, sizeof(name), "CP%u", (unsigned)codepage);
+    appendCodepageCharacters(string, characters, name);
   }
 
   return string;

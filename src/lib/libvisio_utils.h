@@ -24,7 +24,8 @@
 
 #include <librevenge/librevenge.h>
 #include <librevenge-stream/librevenge-stream.h>
-#include <unicode/utypes.h>
+#include <cstdint>
+#include <vector>
 
 #if defined(HAVE_FUNC_ATTRIBUTE_FORMAT)
 #define VSD_ATTRIBUTE_PRINTF(fmt, arg) __attribute__((format(printf, fmt, arg)))
@@ -72,7 +73,11 @@ const librevenge::RVNGString getColourString(const Colour &c);
 
 unsigned long getRemainingLength(librevenge::RVNGInputStream *input);
 
-void appendUCS4(librevenge::RVNGString &text, UChar32 ucs4Character);
+void appendUCS4(librevenge::RVNGString &text, uint32_t ucs4Character);
+// Text in a Windows code page ("CP1252", "CP932" ...) or in UTF-16LE appended as UTF-8 (iconv, on
+// Windows MultiByteToWideChar; ICU did it before); characters that cannot be converted are skipped.
+void appendCodepageCharacters(librevenge::RVNGString &text, const std::vector<unsigned char> &characters, const char *codepage);
+void appendUTF16Characters(librevenge::RVNGString &text, const std::vector<unsigned char> &characters);
 
 void debugPrint(const char *format, ...) VSD_ATTRIBUTE_PRINTF(1, 2);
 

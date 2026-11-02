@@ -54,12 +54,24 @@ PKG_CHECK_MODULES([REVENGE],[librevenge-0.0])
 
 PKG_CHECK_MODULES([LIBXML],[libxml-2.0])
 
-# ========
-# Find icu
-# ========
-PKG_CHECK_MODULES([ICU], [icu-uc])
-AC_SUBST(ICU_CFLAGS)
-AC_SUBST(ICU_LIBS)
+# ==========
+# Find iconv
+# ==========
+# (character sets: in the C library with glibc, libiconv on macOS and elsewhere)
+ICONV_LIBS=
+AS_CASE([$host_os], [mingw*|cygwin*|msys*], [], [
+AC_MSG_CHECKING([for iconv])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <iconv.h>]], [[iconv_close(iconv_open("UTF-8", "CP1250"));]])],
+	[AC_MSG_RESULT([yes])],
+	[save_LIBS="$LIBS"
+	LIBS="$LIBS -liconv"
+	AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <iconv.h>]], [[iconv_close(iconv_open("UTF-8", "CP1250"));]])],
+		[AC_MSG_RESULT([-liconv])
+		ICONV_LIBS=-liconv],
+		[AC_MSG_ERROR([iconv not found])])
+	LIBS="$save_LIBS"])
+])   # (Windows: MultiByteToWideChar, no iconv)
+AC_SUBST(ICONV_LIBS)
 
 # ===========================
 # Find required boost headers
@@ -273,8 +285,8 @@ AS_IF([test x"$GCC" = xyes], [
 		CXXFLAGS="$CXXFLAGS -Wvolatile-register-var -Wwrite-strings"
 	])
 ])
-LIBVISIO_CXXFLAGS="${REVENGE_CFLAGS} ${LIBXML_CFLAGS} ${ICU_CFLAGS}"
-LIBVISIO_LIBS="${REVENGE_LIBS} ${LIBXML_LIBS} ${ICU_LIBS}"
+LIBVISIO_CXXFLAGS="${REVENGE_CFLAGS} ${LIBXML_CFLAGS}"
+LIBVISIO_LIBS="${REVENGE_LIBS} ${LIBXML_LIBS} ${ICONV_LIBS}"
 AC_SUBST(LIBVISIO_CXXFLAGS)
 AC_SUBST(LIBVISIO_LIBS)
 

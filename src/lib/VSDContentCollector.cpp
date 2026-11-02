@@ -17,8 +17,6 @@
 #include <set>
 #include <stack>
 #include <boost/spirit/include/qi.hpp>
-#include <unicode/ucnv.h>
-#include <unicode/utf8.h>
 
 #include "VSDParser.h"
 #include "VSDInternalStream.h"
@@ -3742,7 +3740,7 @@ void libvisio::VSDContentCollector::appendCharacters(librevenge::RVNGString &tex
     return;
   }
 
-  static const UChar32 symbolmap [] =
+  static const uint32_t symbolmap [] =
   {
     0x0020, 0x0021, 0x2200, 0x0023, 0x2203, 0x0025, 0x0026, 0x220D, // 0x20 ..
     0x0028, 0x0029, 0x2217, 0x002B, 0x002C, 0x2212, 0x002E, 0x002F,
@@ -3774,7 +3772,7 @@ void libvisio::VSDContentCollector::appendCharacters(librevenge::RVNGString &tex
     0x23A0, 0x23A4, 0x23A5, 0x23A6, 0x23AB, 0x23AC, 0x23AD, 0x0020  // .. 0xFE
   };
 
-  UChar32  ucs4Character = 0;
+  uint32_t ucs4Character = 0;
   if (format == VSD_TEXT_SYMBOL) // SYMBOL
   {
     for (unsigned char character : characters)
@@ -3790,92 +3788,72 @@ void libvisio::VSDContentCollector::appendCharacters(librevenge::RVNGString &tex
   }
   else
   {
-    UErrorCode status = U_ZERO_ERROR;
-    UConverter *conv = nullptr;
+    const char *codepage;
     switch (format)
     {
     case VSD_TEXT_JAPANESE:
-      conv = ucnv_open("windows-932", &status);
+      codepage = "CP932";
       break;
     case VSD_TEXT_KOREAN:
-      conv = ucnv_open("windows-949", &status);
+      codepage = "CP949";
       break;
     case VSD_TEXT_CHINESE_SIMPLIFIED:
-      conv = ucnv_open("windows-936", &status);
+      codepage = "CP936";
       break;
     case VSD_TEXT_CHINESE_TRADITIONAL:
-      conv = ucnv_open("windows-950", &status);
+      codepage = "CP950";
       break;
     case VSD_TEXT_GREEK:
-      conv = ucnv_open("windows-1253", &status);
+      codepage = "CP1253";
       break;
     case VSD_TEXT_TURKISH:
-      conv = ucnv_open("windows-1254", &status);
+      codepage = "CP1254";
       break;
     case VSD_TEXT_VIETNAMESE:
-      conv = ucnv_open("windows-1258", &status);
+      codepage = "CP1258";
       break;
     case VSD_TEXT_HEBREW:
-      conv = ucnv_open("windows-1255", &status);
+      codepage = "CP1255";
       break;
     case VSD_TEXT_ARABIC:
-      conv = ucnv_open("windows-1256", &status);
+      codepage = "CP1256";
       break;
     case VSD_TEXT_BALTIC:
-      conv = ucnv_open("windows-1257", &status);
+      codepage = "CP1257";
       break;
     case VSD_TEXT_RUSSIAN:
-      conv = ucnv_open("windows-1251", &status);
+      codepage = "CP1251";
       break;
     case VSD_TEXT_THAI:
-      conv = ucnv_open("windows-874", &status);
+      codepage = "CP874";
       break;
     case VSD_TEXT_CENTRAL_EUROPE:
-      conv = ucnv_open("windows-1250", &status);
+      codepage = "CP1250";
       break;
     default:
-      conv = ucnv_open("windows-1252", &status);
+      codepage = "CP1252";
       break;
     }
-    if (U_SUCCESS(status) && conv)
+    // a field's place (0x1e, the same byte in every code page) as U+FFFC, the rest converted
+    std::vector<unsigned char> run;
+    for (unsigned char character : characters)
     {
-      const auto *src = (const char *)characters.data();
-      const char *srcLimit = (const char *)src + characters.size();
-      while (src < srcLimit)
+      if (character != 0x1e)
       {
-        ucs4Character = ucnv_getNextUChar(conv, &src, srcLimit, &status);
-        if (U_SUCCESS(status) && U_IS_UNICODE_CHAR(ucs4Character))
-        {
-          if (0x1e == ucs4Character)
-            appendUCS4(text, 0xfffc);
-          else
-            appendUCS4(text, ucs4Character);
-        }
+        run.push_back(character);
+        continue;
       }
+      appendCodepageCharacters(text, run, codepage);
+      run.clear();
+      appendUCS4(text, 0xfffc);
     }
-    if (conv)
-      ucnv_close(conv);
+    appendCodepageCharacters(text, run, codepage);
   }
 }
 
 void libvisio::VSDContentCollector::appendCharacters(librevenge::RVNGString &text, const std::vector<unsigned char> &characters)
 {
-  UErrorCode status = U_ZERO_ERROR;
-  UConverter *conv = ucnv_open("UTF-16LE", &status);
-
-  if (U_SUCCESS(status) && conv)
-  {
-    const auto *src = (const char *)characters.data();
-    const char *srcLimit = (const char *)src + characters.size();
-    while (src < srcLimit)
-    {
-      UChar32 ucs4Character = ucnv_getNextUChar(conv, &src, srcLimit, &status);
-      if (U_SUCCESS(status) && U_IS_UNICODE_CHAR(ucs4Character))
-        appendUCS4(text, ucs4Character);
-    }
-  }
-  if (conv)
-    ucnv_close(conv);
+  appendUTF16Characters(text, characters);
 }
 
 void libvisio::VSDContentCollector::_appendField(librevenge::RVNGString &text)
