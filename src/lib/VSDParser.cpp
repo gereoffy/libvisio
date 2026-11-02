@@ -9,6 +9,8 @@
 
 #include "VSDParser.h"
 
+#include <algorithm>
+
 #include <librevenge-stream/librevenge-stream.h>
 #include <locale.h>
 #include <sstream>
@@ -699,6 +701,40 @@ void libvisio::VSDParser::_flushShape()
   m_shape.m_paraList.handle(m_collector);
 }
 
+// The geometry sections of a shape are numbered by the order of the shape chunk's list of its
+// children, not by the order of their chunks in the file (a master's are often stored in reverse):
+// a shape's section n overrides its master's section n, and its polyline and spline rows that
+// refer to the master's data take the data of that section.
+void libvisio::VSDParser::_orderGeometries()
+{
+  if (m_shapeChildOrder.empty() || m_shape.m_geometries.size() < 2)
+    return;
+  std::vector<std::pair<unsigned, unsigned> > order;   // (rank, ordinal)
+  for (const auto &g : m_shape.m_geometries)
+  {
+    unsigned rank = (unsigned)m_shapeChildOrder.size() + g.first;   // (not in the list: after the listed ones, in file order)
+    auto chunkId = m_geomListChunkIds.find(g.first);
+    if (chunkId != m_geomListChunkIds.end())
+    {
+      auto pos = std::find(m_shapeChildOrder.begin(), m_shapeChildOrder.end(), chunkId->second);
+      if (pos != m_shapeChildOrder.end())
+        rank = (unsigned)(pos - m_shapeChildOrder.begin());
+    }
+    order.push_back(std::make_pair(rank, g.first));
+  }
+  std::sort(order.begin(), order.end());
+  bool sameOrder = true;
+  for (size_t i = 0; i < order.size() && sameOrder; i++)
+    sameOrder = order[i].second == i;
+  if (sameOrder)
+    return;
+  std::map<unsigned, VSDGeometryList> sorted;
+  for (size_t i = 0; i < order.size(); i++)
+    sorted[(unsigned)i] = std::move(m_shape.m_geometries[order[i].second]);
+  m_shape.m_geometries = std::move(sorted);
+  m_currentGeometryList = nullptr;
+}
+
 void libvisio::VSDParser::_handleLevelChange(unsigned level)
 {
   if (level == m_currentLevel)
@@ -708,6 +744,7 @@ void libvisio::VSDParser::_handleLevelChange(unsigned level)
     if (!m_shape.m_geometries.empty() && m_currentGeometryList && m_currentGeometryList->empty())
     {
       m_shape.m_geometries.erase(--m_currentGeomListCount);
+      m_geomListChunkIds.erase(m_currentGeomListCount);
       m_currentGeometryList = nullptr;
     }
     m_collector->collectShapesOrder(0, m_currentShapeLevel+2, m_shapeList.getShapesOrder());
@@ -716,6 +753,7 @@ void libvisio::VSDParser::_handleLevelChange(unsigned level)
   }
   if (level <= m_currentShapeLevel)
   {
+    _orderGeometries();
     if (!m_isStencilStarted)
     {
       _flushShape();
@@ -916,10 +954,14 @@ void libvisio::VSDParser::readTextBlock(librevenge::RVNGInputStream *input)
 void libvisio::VSDParser::readGeomList(librevenge::RVNGInputStream *input)
 {
   if (!m_shape.m_geometries.empty() && m_currentGeometryList && m_currentGeometryList->empty())
+  {
     m_shape.m_geometries.erase(--m_currentGeomListCount);
+    m_geomListChunkIds.erase(m_currentGeomListCount);
+  }
   // Since this is a map, this will default construct an element and then
   // the m_currentGeometryList pointer takes its address and we will work
   // on it over that pointer.
+  m_geomListChunkIds[m_currentGeomListCount] = m_header.id;
   m_currentGeometryList = &m_shape.m_geometries[m_currentGeomListCount++];
 
   if (m_header.trailer)
@@ -1269,6 +1311,21 @@ void libvisio::VSDParser::readPageProps(librevenge::RVNGInputStream *input)
 void libvisio::VSDParser::readShape(librevenge::RVNGInputStream *input)
 {
   m_currentGeomListCount = 0;
+  m_shapeChildOrder.clear();
+  m_geomListChunkIds.clear();
+  if (m_header.list)   // a list chunk: its data starts with the length of a sub-header and of the list of its children's chunk ids
+  {
+    long start = input->tell();
+    uint32_t subHeaderLength = readU32(input);
+    uint32_t childrenListLength = readU32(input);
+    if (subHeaderLength <= 4096 && childrenListLength <= 4096 && subHeaderLength + childrenListLength <= getRemainingLength(input))
+    {
+      input->seek(subHeaderLength, librevenge::RVNG_SEEK_CUR);
+      for (size_t i = 0; i < childrenListLength / sizeof(uint32_t); i++)
+        m_shapeChildOrder.push_back(readU32(input));
+    }
+    input->seek(start, librevenge::RVNG_SEEK_SET);
+  }
   m_isShapeStarted = true;
   m_shapeList.clear();
   if (m_header.id != MINUS_ONE)

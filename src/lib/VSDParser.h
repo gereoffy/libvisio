@@ -171,6 +171,9 @@ protected:
 
   VSDGeometryList *m_currentGeometryList;
   unsigned m_currentGeomListCount;
+  std::vector<unsigned> m_shapeChildOrder;   // the shape chunk's list of its child chunks: the order of its sections
+  std::map<unsigned, unsigned> m_geomListChunkIds;   // a geometry list's ordinal -> its chunk id
+  void _orderGeometries();
 
   std::map<unsigned, VSDName> m_fonts;
   std::map<unsigned, VSDName> m_names;
