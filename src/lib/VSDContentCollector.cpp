@@ -1328,6 +1328,30 @@ void libvisio::VSDContentCollector::_flushCurrentForeignData()
 
   _appendVisibleAndPrintable(m_currentForeignProps);
 
+  // A picture larger than its shape (cropped: its offset and size beyond the shape's box) shows
+  // only inside the shape, as in Visio: the box as its clip path (libvisio:clip-path).
+  const double eps = 1e-6;
+  if (m_foreignOffsetX < -eps || m_foreignOffsetY < -eps || m_foreignOffsetX + m_foreignWidth > m_xform.width + eps ||
+      m_foreignOffsetY + m_foreignHeight > m_xform.height + eps)
+  {
+    librevenge::RVNGPropertyListVector clip;
+    const double corners[4][2] = {{0.0, 0.0}, {m_xform.width, 0.0}, {m_xform.width, m_xform.height}, {0.0, m_xform.height}};
+    for (int i = 0; i < 4; ++i)
+    {
+      double x = corners[i][0], y = corners[i][1];
+      transformPoint(x, y);
+      librevenge::RVNGPropertyList node;
+      node.insert("librevenge:path-action", i ? "L" : "M");
+      node.insert("svg:x", m_scale * x);
+      node.insert("svg:y", m_scale * y);
+      clip.append(node);
+    }
+    librevenge::RVNGPropertyList close;
+    close.insert("librevenge:path-action", "Z");
+    clip.append(close);
+    m_currentForeignProps.insert("libvisio:clip-path", clip);
+  }
+
   if (m_currentForeignData.size() && m_currentForeignProps["librevenge:mime-type"] && m_foreignWidth != 0.0 && m_foreignHeight != 0.0)
   {
     m_shapeOutputDrawing->addStyle(styleProps);
