@@ -940,6 +940,7 @@ void libvisio::VSDXMLParserBase::readShape(xmlTextReaderPtr reader)
   const shared_ptr<xmlChar> textStyleString(xmlTextReaderGetAttribute(reader, BAD_CAST("TextStyle")), xmlFree);
 
   shared_ptr<xmlChar> pShapeName(xmlTextReaderGetAttribute(reader, BAD_CAST("NameU")), xmlFree);
+  const shared_ptr<xmlChar> typeString(xmlTextReaderGetAttribute(reader, BAD_CAST("Type")), xmlFree);
 
   unsigned id = idString ? (unsigned)xmlStringToLong(idString) : MINUS_ONE;
   unsigned masterPage = masterPageString ? (unsigned)xmlStringToLong(masterPageString) : MINUS_ONE;
@@ -993,6 +994,7 @@ void libvisio::VSDXMLParserBase::readShape(xmlTextReaderPtr reader)
   m_shape.m_textStyleId = textStyle;
 
   m_shape.m_parent = m_shapeStack.empty() ? MINUS_ONE : m_shapeStack.top().m_shapeId;
+  m_shape.m_guide = typeString && xmlStrEqual(typeString.get(), BAD_CAST("Guide"));   // (a guide: not drawn, as the binary files' guide chunks are not)
   m_shape.m_masterPage = masterPage;
   m_shape.m_masterShape = masterShape;
   m_shape.m_shapeId = id;
@@ -1757,7 +1759,7 @@ void libvisio::VSDXMLParserBase::readForeignData(xmlTextReaderPtr reader)
 
 void libvisio::VSDXMLParserBase::_flushShape()
 {
-  if (!m_isShapeStarted)
+  if (!m_isShapeStarted || m_shape.m_guide)
     return;
 
   m_collector->collectShape(m_shape.m_shapeId, m_currentShapeLevel, m_shape.m_parent,

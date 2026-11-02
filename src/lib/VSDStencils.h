@@ -56,6 +56,7 @@ public:
   std::unique_ptr<XForm> m_txtxform;
   std::unique_ptr<XForm1D> m_xform1d;
   VSDMisc m_misc;
+  bool m_guide;   // a guide (Type="Guide"): not drawn
   VSDName m_layerMem;
   VSDName m_aName;
 };
