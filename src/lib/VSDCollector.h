@@ -42,6 +42,8 @@ public:
                                     const std::optional<unsigned char> &fillPattern, const std::optional<double> &fillFGTransparency,
                                     const std::optional<double> &fillBGTransparency, const std::optional<unsigned char> &shadowPattern,
                                     const std::optional<Colour> &shfgc) = 0;
+  // a shape's own gradient fill settings (Visio 2013's: VSDXParser), after its collectFillAndShadow
+  virtual void collectFillGradient(unsigned /* level */, const VSDOptionalGradient & /* gradient */) {}
   virtual void collectGeometry(unsigned id, unsigned level, bool noFill, bool noLine, bool noShow) = 0;
   virtual void collectMoveTo(unsigned id, unsigned level, double x, double y) = 0;
   virtual void collectLineTo(unsigned id, unsigned level, double x, double y) = 0;

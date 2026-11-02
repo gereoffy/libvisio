@@ -100,6 +100,44 @@ struct VSDLineStyle
   long qsLineMatrix;
 };
 
+// A gradient fill's stop (a row of the FillGradient section, by its IX): its colour, its
+// transparency (0..1) and its position (0..1) along the gradient. A deleted row (Del="1")
+// removes the inherited one.
+struct VSDGradientStop
+{
+  VSDGradientStop() : colour(), transparency(), position(), deleted(false) {}
+  std::optional<Colour> colour;
+  std::optional<double> transparency;
+  std::optional<double> position;
+  bool deleted;
+  void override(const VSDGradientStop &stop)
+  {
+    ASSIGN_OPTIONAL(stop.colour, colour);
+    ASSIGN_OPTIONAL(stop.transparency, transparency);
+    ASSIGN_OPTIONAL(stop.position, position);
+    deleted = stop.deleted;
+  }
+};
+
+// Visio 2013's gradient fill (the Gradient Properties: FillGradientEnabled, FillGradientDir,
+// FillGradientAngle and the FillGradient section's stops)
+struct VSDOptionalGradient
+{
+  VSDOptionalGradient() : enabled(), dir(), angle(), stops() {}
+  std::optional<bool> enabled;
+  std::optional<unsigned char> dir;   // 0 linear (at angle), 1..7 radial, 8..12 rectangular, 13 path
+  std::optional<double> angle;        // radians, from the positive x axis
+  std::map<unsigned, VSDGradientStop> stops;
+  void override(const VSDOptionalGradient &gradient)
+  {
+    ASSIGN_OPTIONAL(gradient.enabled, enabled);
+    ASSIGN_OPTIONAL(gradient.dir, dir);
+    ASSIGN_OPTIONAL(gradient.angle, angle);
+    for (const auto &stop : gradient.stops)
+      stops[stop.first].override(stop.second);
+  }
+};
+
 struct VSDOptionalFillStyle
 {
   VSDOptionalFillStyle() :
@@ -136,6 +174,7 @@ struct VSDOptionalFillStyle
     ASSIGN_OPTIONAL(style.shadowFgColour, shadowFgColour);
     ASSIGN_OPTIONAL(style.variationColorIndex, variationColorIndex);
     ASSIGN_OPTIONAL(style.variationStyleIndex, variationStyleIndex);
+    gradient.override(style.gradient);
   }
 
   std::optional<Colour> fgColour;
@@ -152,6 +191,7 @@ struct VSDOptionalFillStyle
   std::optional<long> qsFillMatrix;
   std::optional<unsigned> variationColorIndex;
   std::optional<unsigned> variationStyleIndex;
+  VSDOptionalGradient gradient;
 };
 
 struct VSDFillStyle
@@ -204,6 +244,7 @@ struct VSDFillStyle
     ASSIGN_OPTIONAL(style.fgColour, fgColour);
     ASSIGN_OPTIONAL(style.bgColour, bgColour);
     ASSIGN_OPTIONAL(style.shadowFgColour, shadowFgColour);
+    gradient.override(style.gradient);
   }
 
   Colour fgColour;
@@ -220,6 +261,7 @@ struct VSDFillStyle
   long qsFillMatrix;
   unsigned variationColorIndex;
   unsigned variationStyleIndex;
+  VSDOptionalGradient gradient;   // (its stops as the rows give them; see _fillAndShadowProperties)
 };
 
 struct VSDOptionalCharStyle

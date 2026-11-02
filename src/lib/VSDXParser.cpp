@@ -1344,6 +1344,22 @@ void libvisio::VSDXParser::readShapeProperties(xmlTextReaderPtr reader)
       if (XML_READER_TYPE_ELEMENT == tokenType)
         readTabs(reader);
       break;
+    case XML_FILLGRADIENTENABLED:
+      if (XML_READER_TYPE_ELEMENT == tokenType)
+        ret = readBoolData(m_shape.m_fillStyle.gradient.enabled, reader);
+      break;
+    case XML_FILLGRADIENTDIR:
+      if (XML_READER_TYPE_ELEMENT == tokenType)
+        ret = readByteData(m_shape.m_fillStyle.gradient.dir, reader);
+      break;
+    case XML_FILLGRADIENTANGLE:
+      if (XML_READER_TYPE_ELEMENT == tokenType)
+        ret = readDoubleData(m_shape.m_fillStyle.gradient.angle, reader);
+      break;
+    case XML_FILLGRADIENT:
+      if (XML_READER_TYPE_ELEMENT == tokenType && XML_SECTION == tokenClass)
+        readFillGradient(reader);
+      break;
     default:
       if (XML_SECTION == tokenClass && XML_READER_TYPE_ELEMENT == tokenType)
         ret = skipSection(reader);
@@ -1396,6 +1412,61 @@ void libvisio::VSDXParser::readParagraph(xmlTextReaderPtr reader)
       readParaIX(reader);
   }
   while ((XML_SECTION != tokenId || XML_READER_TYPE_END_ELEMENT != tokenType) && 1 == ret && (!m_watcher || !m_watcher->isError()));
+}
+
+// The FillGradient section: a gradient fill's stops, a row each (by its IX; Del="1" removes an
+// inherited one)
+void libvisio::VSDXParser::readFillGradient(xmlTextReaderPtr reader)
+{
+  if (xmlTextReaderIsEmptyElement(reader))
+    return;
+  int ret = 1;
+  int tokenId = XML_TOKEN_INVALID;
+  int tokenType = -1;
+  do
+  {
+    ret = xmlTextReaderRead(reader);
+    tokenId = getElementToken(reader);
+    tokenType = xmlTextReaderNodeType(reader);
+    if (XML_ROW == tokenId && XML_READER_TYPE_ELEMENT == tokenType)
+      readFillGradientRow(reader);
+  }
+  while ((XML_SECTION != tokenId || XML_READER_TYPE_END_ELEMENT != tokenType) && 1 == ret && (!m_watcher || !m_watcher->isError()));
+}
+
+void libvisio::VSDXParser::readFillGradientRow(xmlTextReaderPtr reader)
+{
+  VSDGradientStop &stop = m_shape.m_fillStyle.gradient.stops[getIX(reader)];
+  const std::shared_ptr<xmlChar> delString(xmlTextReaderGetAttribute(reader, BAD_CAST("Del")), xmlFree);
+  stop.deleted = delString && xmlStringToBool(delString);
+  if (xmlTextReaderIsEmptyElement(reader))
+    return;
+  int ret = 1;
+  int tokenId = XML_TOKEN_INVALID;
+  int tokenType = -1;
+  do
+  {
+    ret = xmlTextReaderRead(reader);
+    tokenId = getElementToken(reader);
+    tokenType = xmlTextReaderNodeType(reader);
+    if (XML_READER_TYPE_ELEMENT != tokenType)
+      continue;
+    switch (tokenId)
+    {
+    case XML_GRADIENTSTOPCOLOR:
+      ret = readExtendedColourData(stop.colour, reader);
+      break;
+    case XML_GRADIENTSTOPCOLORTRANS:
+      ret = readDoubleData(stop.transparency, reader);
+      break;
+    case XML_GRADIENTSTOPPOSITION:
+      ret = readDoubleData(stop.position, reader);
+      break;
+    default:
+      break;
+    }
+  }
+  while ((XML_ROW != tokenId || XML_READER_TYPE_END_ELEMENT != tokenType) && 1 == ret && (!m_watcher || !m_watcher->isError()));
 }
 
 void libvisio::VSDXParser::readTabs(xmlTextReaderPtr reader)

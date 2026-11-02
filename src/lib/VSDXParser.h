@@ -79,6 +79,8 @@ private:
   void readCharacter(xmlTextReaderPtr reader);
   void readFonts(xmlTextReaderPtr reader);
   void readTabs(xmlTextReaderPtr reader);
+  void readFillGradient(xmlTextReaderPtr reader);
+  void readFillGradientRow(xmlTextReaderPtr reader);
   void readTabRow(xmlTextReaderPtr reader);
 
   // Private data

@@ -1741,6 +1741,12 @@ void libvisio::VSDContentCollector::collectFillAndShadow(unsigned level, const s
   collectFillAndShadow(level, colourFG, colourBG, fillPattern, fillFGTransparency, fillBGTransparency, shadowPattern, shfgc, m_shadowOffsetX, m_shadowOffsetY, -1, -1, -1);
 }
 
+void libvisio::VSDContentCollector::collectFillGradient(unsigned level, const VSDOptionalGradient &gradient)
+{
+  _handleLevelChange(level);
+  m_fillStyle.gradient.override(gradient);
+}
+
 void libvisio::VSDContentCollector::collectForeignData(unsigned level, const librevenge::RVNGBinaryData &binaryData)
 {
   _handleLevelChange(level);
@@ -3262,7 +3268,71 @@ void libvisio::VSDContentCollector::_fillAndShadowProperties(const VSDFillStyle 
   if (style.pattern)
     styleProps.insert("svg:fill-rule", "evenodd");
 
-  if (!style.pattern)
+  // Visio 2013's gradient fill (with a fill pattern; its stops as rows, at their positions or, a
+  // row without one, evenly spaced): linear along FillGradientAngle (from the positive x axis,
+  // clockwise on the page as drawn: 90 degrees runs from the top down, as in Office), else
+  // radial from the corner, edge or centre FillGradientDir names (rectangular and path
+  // gradients as radial ones from the same point), reaching the farthest corner of the box
+  std::vector<std::pair<double, const VSDGradientStop *>> gradientStops;
+  if (style.pattern && style.gradient.enabled.value_or(false))
+  {
+    std::vector<const VSDGradientStop *> rows;
+    for (const auto &stop : style.gradient.stops)
+      if (!stop.second.deleted && stop.second.colour)
+        rows.push_back(&stop.second);
+    for (size_t i = 0; i < rows.size(); ++i)
+    {
+      double position = rows[i]->position.value_or(rows.size() > 1 ? double(i) / double(rows.size() - 1) : 0.0);
+      gradientStops.push_back(std::make_pair((std::min)((std::max)(position, 0.0), 1.0), rows[i]));
+    }
+    std::stable_sort(gradientStops.begin(), gradientStops.end(),
+                     [](const std::pair<double, const VSDGradientStop *> &a, const std::pair<double, const VSDGradientStop *> &b)
+    {
+      return a.first < b.first;
+    });
+  }
+
+  if (gradientStops.size() >= 2)
+  {
+    styleProps.insert("draw:fill", "gradient");
+    styleProps.insert("draw:start-color", getColourString(gradientStops.front().second->colour.value()));
+    styleProps.insert("draw:end-color", getColourString(gradientStops.back().second->colour.value()));
+    styleProps.remove("draw:opacity");
+    librevenge::RVNGPropertyListVector stops;
+    for (const auto &stop : gradientStops)
+    {
+      librevenge::RVNGPropertyList stopProps;
+      stopProps.insert("svg:offset", stop.first, librevenge::RVNG_PERCENT);
+      stopProps.insert("svg:stop-color", getColourString(stop.second->colour.value()));
+      stopProps.insert("svg:stop-opacity", 1.0 - (std::min)((std::max)(stop.second->transparency.value_or(0.0), 0.0), 1.0), librevenge::RVNG_PERCENT);
+      stops.append(stopProps);
+    }
+    unsigned char dir = style.gradient.dir.value_or(0);
+    if (!dir || dir > 13)
+    {
+      styleProps.insert("draw:style", "linear");
+      // (ODF's angle: 0 from the top down, counter-clockwise)
+      double angle = std::fmod(90.0 - style.gradient.angle.value_or(M_PI / 2) * 180.0 / M_PI, 360.0);
+      styleProps.insert("draw:angle", angle < 0 ? angle + 360.0 : angle, librevenge::RVNG_GENERIC);
+      styleProps.insert("svg:linearGradient", stops);
+    }
+    else
+    {
+      static const double origins[14][2] =
+      {
+        {0.5, 0.5}, {1.0, 1.0}, {0.0, 1.0}, {0.5, 0.5}, {0.5, 1.0}, {0.5, 0.0}, {1.0, 0.0}, {0.0, 0.0},
+        {1.0, 1.0}, {0.0, 1.0}, {0.5, 0.5}, {1.0, 0.0}, {0.0, 0.0}, {0.5, 0.5}
+      };
+      const double cx = origins[dir][0], cy = origins[dir][1];
+      styleProps.insert("draw:style", "radial");
+      styleProps.insert("svg:cx", cx, librevenge::RVNG_PERCENT);
+      styleProps.insert("svg:cy", cy, librevenge::RVNG_PERCENT);
+      styleProps.insert("svg:r", std::sqrt((std::max)(cx, 1.0 - cx) * (std::max)(cx, 1.0 - cx) + (std::max)(cy, 1.0 - cy) * (std::max)(cy, 1.0 - cy)),
+                        librevenge::RVNG_PERCENT);
+      styleProps.insert("svg:radialGradient", stops);
+    }
+  }
+  else if (!style.pattern)
     styleProps.insert("draw:fill", "none");
   else if (style.pattern == 1)
   {

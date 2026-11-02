@@ -59,6 +59,7 @@ public:
                             const std::optional<unsigned char> &fillPattern, const std::optional<double> &fillFGTransparency,
                             const std::optional<double> &fillBGTransparency, const std::optional<unsigned char> &shadowPattern,
                             const std::optional<Colour> &shfgc) override;
+  void collectFillGradient(unsigned level, const VSDOptionalGradient &gradient) override;
   void collectGeometry(unsigned id, unsigned level, bool noFill, bool noLine, bool noShow) override;
   void collectMoveTo(unsigned id, unsigned level, double x, double y) override;
   void collectLineTo(unsigned id, unsigned level, double x, double y) override;

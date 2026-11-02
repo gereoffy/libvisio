@@ -206,6 +206,13 @@ ExtraInfo
 Frame
 NewWindow
 Default
+FillGradient
+FillGradientAngle
+FillGradientDir
+FillGradientEnabled
+GradientStopColor
+GradientStopColorTrans
+GradientStopPosition
 Invisible
 SortKey
 Rel
