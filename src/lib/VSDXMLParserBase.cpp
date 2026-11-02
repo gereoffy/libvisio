@@ -1845,6 +1845,7 @@ void libvisio::VSDXMLParserBase::_flushShape()
                                        m_shape.m_charStyle.allcaps, m_shape.m_charStyle.initcaps, m_shape.m_charStyle.smallcaps,
                                        m_shape.m_charStyle.superscript, m_shape.m_charStyle.subscript, m_shape.m_charStyle.scaleWidth);
 
+  m_shape.m_charList.resetLevel(m_currentShapeLevel+2);
   m_shape.m_charList.handle(m_collector);
 
   m_collector->collectDefaultParaStyle(m_shape.m_paraStyle.charCount, m_shape.m_paraStyle.indFirst, m_shape.m_paraStyle.indLeft,
@@ -1853,6 +1854,7 @@ void libvisio::VSDXMLParserBase::_flushShape()
                                        m_shape.m_paraStyle.bulletStr, m_shape.m_paraStyle.bulletFont, m_shape.m_paraStyle.bulletFontSize,
                                        m_shape.m_paraStyle.textPosAfterBullet, m_shape.m_paraStyle.flags);
 
+  m_shape.m_paraList.resetLevel(m_currentShapeLevel+2);
   m_shape.m_paraList.handle(m_collector);
 
   m_collector->collectUnhandledChunk(0, m_currentShapeLevel);

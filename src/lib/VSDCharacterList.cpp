@@ -151,6 +151,13 @@ void libvisio::VSDCharacterList::resetCharCount()
     element.second->setCharCount(0);
 }
 
+// (the rows a shape inherits from its master are at the master's depth: at the shape's own, as its own rows)
+void libvisio::VSDCharacterList::resetLevel(unsigned level)
+{
+  for (auto &element : m_elements)
+    element.second->m_level = level;
+}
+
 unsigned libvisio::VSDCharacterList::getLevel() const
 {
   if (m_elements.empty() || !m_elements.begin()->second)

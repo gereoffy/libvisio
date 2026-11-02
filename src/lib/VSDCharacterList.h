@@ -40,6 +40,7 @@ public:
   void setCharCount(unsigned id, unsigned charCount);
   void resetCharCount();
   unsigned getLevel() const;
+  void resetLevel(unsigned level);
 
   void setElementsOrder(const std::vector<unsigned> &m_elementsOrder);
   void handle(VSDCollector *collector) const;
