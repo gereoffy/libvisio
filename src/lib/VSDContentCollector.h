@@ -60,6 +60,8 @@ public:
                             const std::optional<double> &fillBGTransparency, const std::optional<unsigned char> &shadowPattern,
                             const std::optional<Colour> &shfgc) override;
   void collectFillGradient(unsigned level, const VSDOptionalGradient &gradient) override;
+  void collectPageColourScheme(unsigned level, bool themed) override;
+  void collectShapeColourScheme(const std::optional<unsigned> &colourSchemeIndex) override;
   void collectGeometry(unsigned id, unsigned level, bool noFill, bool noLine, bool noShow) override;
   void collectMoveTo(unsigned id, unsigned level, double x, double y) override;
   void collectLineTo(unsigned id, unsigned level, double x, double y) override;
@@ -333,6 +335,14 @@ private:
   std::vector<VSDTabSet> m_tabSets;
 
   const VSDXTheme *m_documentTheme;
+  bool m_pageThemed;   // the document's theme applies to the page (collectPageColourScheme)
+  std::optional<unsigned> m_nextShapeColourScheme, m_shapeColourScheme;   // (collectShapeColourScheme)
+  // the theme of the current shape: none if its own colour scheme (else the page's) is 0
+  const VSDXTheme *_documentTheme() const
+  {
+    const bool themed = m_shapeColourScheme && m_shapeColourScheme.value() != 65534 ? m_shapeColourScheme.value() != 0 : m_pageThemed;
+    return themed ? m_documentTheme : nullptr;
+  }
   librevenge::RVNGString m_currentShapeType;
 
   // The property lists made last in the text being flushed, and the formats they were made from

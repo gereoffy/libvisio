@@ -55,7 +55,7 @@ libvisio::VSDXParser::VSDXParser(librevenge::RVNGInputStream *input, librevenge:
     m_currentDepth(0),
     m_rels(nullptr),
     m_currentTheme(),
-    m_visitedParts()
+    m_visitedParts(), m_styleColourSchemes(), m_currentStyleSheetId(MINUS_ONE)
 {
 }
 
@@ -451,6 +451,11 @@ void libvisio::VSDXParser::processXmlNode(xmlTextReaderPtr reader)
   case XML_STYLESHEET:
     if (XML_READER_TYPE_ELEMENT == tokenType)
     {
+      const std::shared_ptr<xmlChar> id(xmlTextReaderGetAttribute(reader, BAD_CAST("ID")), xmlFree);
+      const std::shared_ptr<xmlChar> fillStyle(xmlTextReaderGetAttribute(reader, BAD_CAST("FillStyle")), xmlFree);
+      m_currentStyleSheetId = id ? (unsigned)xmlStringToLong(id) : MINUS_ONE;
+      if (id)
+        m_styleColourSchemes[m_currentStyleSheetId] = std::make_pair(std::optional<unsigned>(), fillStyle ? (unsigned)xmlStringToLong(fillStyle) : MINUS_ONE);
       readStyleSheet(reader);
       readStyleProperties(reader);
     }
@@ -643,6 +648,8 @@ void libvisio::VSDXParser::readPageSheetProperties(xmlTextReaderPtr reader)
   double drawingScale = 1.0;
   std::optional<unsigned> variationColorIndex;
   std::optional<unsigned> variationStyleIndex;
+  std::optional<unsigned> colourSchemeIndex;
+  const std::shared_ptr<xmlChar> fillStyle(xmlTextReaderGetAttribute(reader, BAD_CAST("FillStyle")), xmlFree);
 
   auto level = (unsigned)getElementDepth(reader);
   int ret = 1;
@@ -691,6 +698,10 @@ void libvisio::VSDXParser::readPageSheetProperties(xmlTextReaderPtr reader)
       if (XML_READER_TYPE_ELEMENT == tokenType)
         ret = readUnsignedData(variationStyleIndex, reader);
       break;
+    case XML_COLORSCHEMEINDEX:
+      if (XML_READER_TYPE_ELEMENT == tokenType)
+        ret = readUnsignedData(colourSchemeIndex, reader);
+      break;
     case XML_LAYER:
       if (XML_READER_TYPE_ELEMENT == tokenType)
         readLayer(reader);
@@ -710,6 +721,19 @@ void libvisio::VSDXParser::readPageSheetProperties(xmlTextReaderPtr reader)
   {
     double scale = drawingScale > 0 || drawingScale < 0 ? pageScale/drawingScale : 1.0;
     m_collector->collectPageProps(0, level, pageWidth, pageHeight, shadowOffsetX, shadowOffsetY, scale, 0, variationColorIndex, variationStyleIndex);
+    // The page's colour scheme: its own, else its style's (through the styles it inherits); 0 is
+    // no theme ([MS-VSDX] ColorSchemeIndex: the colours of the root style sheet), and the
+    // document's theme does not apply to the page's themed cells
+    unsigned style = fillStyle ? (unsigned)xmlStringToLong(fillStyle) : 0;
+    for (int depth = 0; !colourSchemeIndex && depth < 32; ++depth)
+    {
+      const auto iter = m_styleColourSchemes.find(style);
+      if (iter == m_styleColourSchemes.end())
+        break;
+      colourSchemeIndex = iter->second.first;
+      style = iter->second.second;
+    }
+    m_collector->collectPageColourScheme(level, !colourSchemeIndex || colourSchemeIndex.value() != 0);
   }
 }
 
@@ -952,6 +976,10 @@ void libvisio::VSDXParser::readStyleProperties(xmlTextReaderPtr reader)
     case XML_QUICKSTYLEFILLMATRIX:
       if (XML_READER_TYPE_ELEMENT == tokenType)
         ret = readLongData(qsFillMatrix, reader);
+      break;
+    case XML_COLORSCHEMEINDEX:
+      if (XML_READER_TYPE_ELEMENT == tokenType && m_styleColourSchemes.count(m_currentStyleSheetId))
+        ret = readUnsignedData(m_styleColourSchemes[m_currentStyleSheetId].first, reader);
       break;
     default:
       break;
@@ -1343,6 +1371,10 @@ void libvisio::VSDXParser::readShapeProperties(xmlTextReaderPtr reader)
     case XML_TABS:
       if (XML_READER_TYPE_ELEMENT == tokenType)
         readTabs(reader);
+      break;
+    case XML_COLORSCHEMEINDEX:
+      if (XML_READER_TYPE_ELEMENT == tokenType)
+        ret = readUnsignedData(m_shape.m_colourSchemeIndex, reader);
       break;
     case XML_FILLGRADIENTENABLED:
       if (XML_READER_TYPE_ELEMENT == tokenType)

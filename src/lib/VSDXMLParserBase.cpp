@@ -983,8 +983,13 @@ void libvisio::VSDXMLParserBase::readShape(xmlTextReaderPtr reader)
       m_shape.m_text = tmpShape->m_text;
       m_shape.m_textFormat = tmpShape->m_textFormat;
       m_shape.m_misc = tmpShape->m_misc;
+      m_shape.m_colourSchemeIndex = tmpShape->m_colourSchemeIndex;
     }
   }
+  // (a group's theme applies to its shapes: a shape without a colour scheme of its own or its
+  // master's has its group's)
+  if (!m_shape.m_colourSchemeIndex && !m_shapeStack.empty())
+    m_shape.m_colourSchemeIndex = m_shapeStack.top().m_colourSchemeIndex;
 
   if (!m_shapeStack.empty())
     m_shapeStack.top().m_shapeList.addShapeId(id);
@@ -1764,6 +1769,7 @@ void libvisio::VSDXMLParserBase::_flushShape()
   if (!m_isShapeStarted || m_shape.m_guide)
     return;
 
+  m_collector->collectShapeColourScheme(m_shape.m_colourSchemeIndex);
   m_collector->collectShape(m_shape.m_shapeId, m_currentShapeLevel, m_shape.m_parent,
                             m_shape.m_masterPage, m_shape.m_masterShape, m_shape.m_lineStyleId,
                             m_shape.m_fillStyleId, m_shape.m_textStyleId, m_shape.m_aName);

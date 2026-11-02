@@ -42,6 +42,11 @@ public:
                                     const std::optional<unsigned char> &fillPattern, const std::optional<double> &fillFGTransparency,
                                     const std::optional<double> &fillBGTransparency, const std::optional<unsigned char> &shadowPattern,
                                     const std::optional<Colour> &shfgc) = 0;
+  // whether the document's theme applies to the current page's themed cells (a page with
+  // colour scheme 0 has no theme)
+  virtual void collectPageColourScheme(unsigned /* level */, bool /* themed */) {}
+  // the next shape's own colour scheme (before its collectShape; none: the page's)
+  virtual void collectShapeColourScheme(const std::optional<unsigned> & /* colourSchemeIndex */) {}
   // a shape's own gradient fill settings (Visio 2013's: VSDXParser), after its collectFillAndShadow
   virtual void collectFillGradient(unsigned /* level */, const VSDOptionalGradient & /* gradient */) {}
   virtual void collectGeometry(unsigned id, unsigned level, bool noFill, bool noLine, bool noShow) = 0;

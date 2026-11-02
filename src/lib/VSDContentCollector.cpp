@@ -144,7 +144,7 @@ libvisio::VSDContentCollector::VSDContentCollector(
   m_backgroundPageID(MINUS_ONE), m_currentPageID(0), m_currentPage(), m_pages(), m_layerList(),
   m_splineControlPoints(), m_splineKnotVector(), m_splineX(0.0), m_splineY(0.0),
   m_splineLastKnot(0.0), m_splineDegree(0), m_splineLevel(0), m_currentShapeLevel(0),
-  m_isBackgroundPage(false), m_currentLayerList(), m_currentLayerMem(), m_tabSets(), m_documentTheme(nullptr), m_currentShapeType(),
+  m_isBackgroundPage(false), m_currentLayerList(), m_currentLayerMem(), m_tabSets(), m_documentTheme(nullptr), m_pageThemed(true), m_nextShapeColourScheme(), m_shapeColourScheme(), m_currentShapeType(),
   m_paraProps(), m_paraPropsStyle(nullptr), m_paraPropsTabSet(nullptr), m_spanProps(), m_spanPropsStyle(nullptr)
 {
 }
@@ -1718,7 +1718,7 @@ void libvisio::VSDContentCollector::collectLine(unsigned level, const std::optio
                                                 const std::optional<double> &rounding, const std::optional<long> &qsLineColour, const std::optional<long> &qsLineMatrix)
 {
   _handleLevelChange(level);
-  m_lineStyle.override(VSDOptionalLineStyle(strokeWidth, c, linePattern, startMarker, endMarker, lineCap, rounding, qsLineColour, qsLineMatrix), m_documentTheme);
+  m_lineStyle.override(VSDOptionalLineStyle(strokeWidth, c, linePattern, startMarker, endMarker, lineCap, rounding, qsLineColour, qsLineMatrix), _documentTheme());
 }
 
 void libvisio::VSDContentCollector::collectFillAndShadow(unsigned level, const std::optional<Colour> &colourFG, const std::optional<Colour> &colourBG,
@@ -1730,7 +1730,7 @@ void libvisio::VSDContentCollector::collectFillAndShadow(unsigned level, const s
   _handleLevelChange(level);
   m_fillStyle.override(VSDOptionalFillStyle(colourFG, colourBG, fillPattern, fillFGTransparency, fillBGTransparency, shfgc,
                                             shadowPattern, shadowOffsetX, shadowOffsetY, qsFillColour, qsShadowColour, qsFillMatrix,
-                                            m_variationColorIndex, m_variationStyleIndex), !_isDefaultShapeFormat() ? m_documentTheme : nullptr);
+                                            m_variationColorIndex, m_variationStyleIndex), !_isDefaultShapeFormat() ? _documentTheme() : nullptr);
 }
 
 void libvisio::VSDContentCollector::collectFillAndShadow(unsigned level, const std::optional<Colour> &colourFG, const std::optional<Colour> &colourBG,
@@ -1739,6 +1739,17 @@ void libvisio::VSDContentCollector::collectFillAndShadow(unsigned level, const s
                                                          const std::optional<unsigned char> &shadowPattern, const std::optional<Colour> &shfgc)
 {
   collectFillAndShadow(level, colourFG, colourBG, fillPattern, fillFGTransparency, fillBGTransparency, shadowPattern, shfgc, m_shadowOffsetX, m_shadowOffsetY, -1, -1, -1);
+}
+
+void libvisio::VSDContentCollector::collectPageColourScheme(unsigned level, bool themed)
+{
+  _handleLevelChange(level);
+  m_pageThemed = themed;
+}
+
+void libvisio::VSDContentCollector::collectShapeColourScheme(const std::optional<unsigned> &colourSchemeIndex)
+{
+  m_nextShapeColourScheme = colourSchemeIndex;   // (taken by collectShape once the previous shape is done)
 }
 
 void libvisio::VSDContentCollector::collectFillGradient(unsigned level, const VSDOptionalGradient &gradient)
@@ -2673,6 +2684,8 @@ void libvisio::VSDContentCollector::collectShape(unsigned id, unsigned level, un
 {
   _handleLevelChange(level);
   m_currentShapeLevel = level;
+  m_shapeColourScheme = m_nextShapeColourScheme;
+  m_nextShapeColourScheme.reset();
 
   m_foreignType = (unsigned)-1; // Tracks current foreign data type
   m_foreignFormat = 0; // Tracks foreign data format
@@ -2760,39 +2773,39 @@ void libvisio::VSDContentCollector::collectShape(unsigned id, unsigned level, un
     }
 
     if (m_stencilShape->m_lineStyleId != MINUS_ONE)
-      m_lineStyle.override(m_styles.getOptionalLineStyle(m_stencilShape->m_lineStyleId), m_documentTheme);
+      m_lineStyle.override(m_styles.getOptionalLineStyle(m_stencilShape->m_lineStyleId), _documentTheme());
 
-    m_lineStyle.override(m_stencilShape->m_lineStyle, m_documentTheme);
+    m_lineStyle.override(m_stencilShape->m_lineStyle, _documentTheme());
 
     bool bDefault = _isDefaultShapeFormat();
     if (m_stencilShape->m_fillStyleId != MINUS_ONE)
-      m_fillStyle.override(m_styles.getOptionalFillStyle(m_stencilShape->m_fillStyleId), !bDefault ? m_documentTheme : nullptr);
+      m_fillStyle.override(m_styles.getOptionalFillStyle(m_stencilShape->m_fillStyleId), !bDefault ? _documentTheme() : nullptr);
 
-    m_fillStyle.override(m_stencilShape->m_fillStyle, !bDefault ? m_documentTheme : nullptr);
+    m_fillStyle.override(m_stencilShape->m_fillStyle, !bDefault ? _documentTheme() : nullptr);
 
     if (m_stencilShape->m_textStyleId != MINUS_ONE)
     {
-      m_defaultCharStyle.override(m_styles.getOptionalCharStyle(m_stencilShape->m_textStyleId), m_documentTheme);
-      m_defaultParaStyle.override(m_styles.getOptionalParaStyle(m_stencilShape->m_textStyleId), m_documentTheme);
-      m_textBlockStyle.override(m_styles.getOptionalTextBlockStyle(m_stencilShape->m_textStyleId), m_documentTheme);
+      m_defaultCharStyle.override(m_styles.getOptionalCharStyle(m_stencilShape->m_textStyleId), _documentTheme());
+      m_defaultParaStyle.override(m_styles.getOptionalParaStyle(m_stencilShape->m_textStyleId), _documentTheme());
+      m_textBlockStyle.override(m_styles.getOptionalTextBlockStyle(m_stencilShape->m_textStyleId), _documentTheme());
     }
 
-    m_textBlockStyle.override(m_stencilShape->m_textBlockStyle, m_documentTheme);
-    m_defaultCharStyle.override(m_stencilShape->m_charStyle, m_documentTheme);
-    m_defaultParaStyle.override(m_stencilShape->m_paraStyle, m_documentTheme);
+    m_textBlockStyle.override(m_stencilShape->m_textBlockStyle, _documentTheme());
+    m_defaultCharStyle.override(m_stencilShape->m_charStyle, _documentTheme());
+    m_defaultParaStyle.override(m_stencilShape->m_paraStyle, _documentTheme());
   }
 
   if (lineStyleId != MINUS_ONE)
-    m_lineStyle.override(m_styles.getOptionalLineStyle(lineStyleId), m_documentTheme);
+    m_lineStyle.override(m_styles.getOptionalLineStyle(lineStyleId), _documentTheme());
 
   if (fillStyleId != MINUS_ONE)
-    m_fillStyle = m_styles.getFillStyle(fillStyleId, m_documentTheme);
+    m_fillStyle = m_styles.getFillStyle(fillStyleId, _documentTheme());
 
   if (textStyleId != MINUS_ONE)
   {
-    m_defaultCharStyle.override(m_styles.getOptionalCharStyle(textStyleId), m_documentTheme);
-    m_defaultParaStyle.override(m_styles.getOptionalParaStyle(textStyleId), m_documentTheme);
-    m_textBlockStyle.override(m_styles.getOptionalTextBlockStyle(textStyleId), m_documentTheme);
+    m_defaultCharStyle.override(m_styles.getOptionalCharStyle(textStyleId), _documentTheme());
+    m_defaultParaStyle.override(m_styles.getOptionalParaStyle(textStyleId), _documentTheme());
+    m_textBlockStyle.override(m_styles.getOptionalTextBlockStyle(textStyleId), _documentTheme());
   }
 
   m_currentGeometryCount = 0;
@@ -2862,7 +2875,7 @@ void libvisio::VSDContentCollector::collectParaIX(unsigned /* id */, unsigned le
   _handleLevelChange(level);
   VSDParaStyle format(m_defaultParaStyle);
   format.override(VSDOptionalParaStyle(charCount, indFirst, indLeft, indRight, spLine, spBefore, spAfter, align,
-                                       bullet, bulletStr, bulletFont, bulletFontSize, textPosAfterBullet, flags), m_documentTheme);
+                                       bullet, bulletStr, bulletFont, bulletFontSize, textPosAfterBullet, flags), _documentTheme());
   format.charCount = charCount;
   m_paraFormats.push_back(format);
 }
@@ -2876,7 +2889,7 @@ void libvisio::VSDContentCollector::collectDefaultParaStyle(unsigned charCount, 
                                                             const std::optional<double> &textPosAfterBullet, const std::optional<unsigned> &flags)
 {
   m_defaultParaStyle.override(VSDOptionalParaStyle(charCount, indFirst, indLeft, indRight, spLine, spBefore, spAfter, align,
-                                                   bullet, bulletStr, bulletFont, bulletFontSize, textPosAfterBullet, flags), m_documentTheme);
+                                                   bullet, bulletStr, bulletFont, bulletFontSize, textPosAfterBullet, flags), _documentTheme());
 }
 
 void libvisio::VSDContentCollector::collectCharIX(unsigned /* id */, unsigned level, unsigned charCount,
@@ -2888,7 +2901,7 @@ void libvisio::VSDContentCollector::collectCharIX(unsigned /* id */, unsigned le
   _handleLevelChange(level);
   VSDCharStyle format(m_defaultCharStyle);
   format.override(VSDOptionalCharStyle(charCount, font, fontColour, fontSize, bold, italic, underline, doubleunderline, strikeout, doublestrikeout,
-                                       allcaps, initcaps, smallcaps, superscript, subscript, scaleWidth), m_documentTheme);
+                                       allcaps, initcaps, smallcaps, superscript, subscript, scaleWidth), _documentTheme());
   format.charCount = charCount;
   m_charFormats.push_back(format);
 }
@@ -2912,7 +2925,7 @@ void libvisio::VSDContentCollector::collectDefaultCharStyle(unsigned charCount,
                                                             const std::optional<double> &scaleWidth)
 {
   m_defaultCharStyle.override(VSDOptionalCharStyle(charCount, font, fontColour, fontSize, bold, italic, underline, doubleunderline, strikeout, doublestrikeout,
-                                                   allcaps, initcaps, smallcaps, superscript, subscript, scaleWidth), m_documentTheme);
+                                                   allcaps, initcaps, smallcaps, superscript, subscript, scaleWidth), _documentTheme());
 }
 
 void libvisio::VSDContentCollector::collectTextBlock(unsigned level, const std::optional<double> &leftMargin, const std::optional<double> &rightMargin,
@@ -2921,7 +2934,7 @@ void libvisio::VSDContentCollector::collectTextBlock(unsigned level, const std::
                                                      const std::optional<unsigned char> &textDirection)
 {
   _handleLevelChange(level);
-  m_textBlockStyle.override(VSDOptionalTextBlockStyle(leftMargin, rightMargin, topMargin, bottomMargin, verticalAlign, isBgFilled, bgColour, defaultTabStop, textDirection), m_documentTheme);
+  m_textBlockStyle.override(VSDOptionalTextBlockStyle(leftMargin, rightMargin, topMargin, bottomMargin, verticalAlign, isBgFilled, bgColour, defaultTabStop, textDirection), _documentTheme());
 }
 
 void libvisio::VSDContentCollector::collectNameList(unsigned /*id*/, unsigned level)
@@ -3756,6 +3769,7 @@ void libvisio::VSDContentCollector::startPage(unsigned pageId)
 {
   if (m_isShapeStarted)
     _flushShape();
+  m_pageThemed = true;
   m_originalX = 0.0;
   m_originalY = 0.0;
   m_txtxform.reset();

@@ -57,6 +57,7 @@ public:
   std::unique_ptr<XForm1D> m_xform1d;
   VSDMisc m_misc;
   bool m_guide;   // a guide (Type="Guide"): not drawn
+  std::optional<unsigned> m_colourSchemeIndex;   // its ColorSchemeIndex (0: no theme; 65534: the page's)
   VSDName m_layerMem;
   VSDName m_aName;
 };

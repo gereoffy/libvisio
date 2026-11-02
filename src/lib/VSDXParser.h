@@ -92,6 +92,10 @@ private:
   VSDXTheme m_currentTheme;
   // parsePage / parseMaster targets currently on the recursion stack
   std::set<std::string> m_visitedParts;
+  // the style sheets' ColorSchemeIndex (if they set it) and the fill style they inherit from:
+  // a page's colour scheme is its own or its style's (0: no theme)
+  std::map<unsigned, std::pair<std::optional<unsigned>, unsigned>> m_styleColourSchemes;
+  unsigned m_currentStyleSheetId;
 };
 
 } // namespace libvisio
