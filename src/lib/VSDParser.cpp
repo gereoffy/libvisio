@@ -355,7 +355,9 @@ void libvisio::VSDParser::handleStream(const Pointer &ptr, unsigned idx, unsigne
   if ((ptr.Format >> 4) == 0x4 || (ptr.Format >> 4) == 0x5 || (ptr.Format >> 4) == 0x0)
   {
     handleBlob(&tmpInput, shift, level+1);
-    if ((ptr.Format >> 4) == 0x5 && ptr.Type != VSD_COLORS)
+    // (a list's pointers marked 0x0 instead of 0x5: stencils some tools other than Visio write)
+    if (((ptr.Format >> 4) == 0x5 && ptr.Type != VSD_COLORS) ||
+        ((ptr.Format >> 4) == 0x0 && ((ptr.Type >= VSD_SCRATCH_LIST && ptr.Type <= VSD_SMART_TAG_LIST) || ptr.Type == VSD_OLE_LIST)))
     {
       // Each stream offset is handled once, however many pointers reach it.
       if (visited.insert(ptr.Offset).second)
