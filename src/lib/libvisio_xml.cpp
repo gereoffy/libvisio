@@ -172,11 +172,78 @@ long xmlStringToLong(const std::shared_ptr<xmlChar> &s)
   return xmlStringToLong(s.get());
 }
 
+namespace
+{
+
+// The usual form of a number, [-+]digits[.digits][(e|E)[-+]digits], with at most 19 significant
+// digits whose value fits in a double's 53 bits and a power of ten of at most 22: then the result
+// is one correctly rounded multiplication or division of two exact doubles, the same value
+// lexical_cast gives, without its stream (that took a tenth of the loading of large XML files).
+// Anything else: false, left to lexical_cast.
+bool fastStringToDouble(const char *s, double &value)
+{
+  static const double pow10[] =
+  {
+    1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19,
+    1e20, 1e21, 1e22
+  };
+  const char *p = s;
+  bool negative = false;
+  if (*p == '-' || *p == '+')
+    negative = *p++ == '-';
+  unsigned long long mantissa = 0;
+  int digits = 0, exponent = 0;
+  bool any = false;
+  for (; *p >= '0' && *p <= '9'; ++p, any = true)
+  {
+    if ((mantissa || *p != '0') && ++digits > 19)
+      return false;
+    mantissa = mantissa * 10 + (unsigned)(*p - '0');
+  }
+  if (*p == '.')
+  {
+    for (++p; *p >= '0' && *p <= '9'; ++p, any = true)
+    {
+      if ((mantissa || *p != '0') && ++digits > 19)
+        return false;
+      mantissa = mantissa * 10 + (unsigned)(*p - '0');
+      --exponent;
+    }
+  }
+  if (!any)
+    return false;
+  if (*p == 'e' || *p == 'E')
+  {
+    ++p;
+    bool negativeExp = false;
+    if (*p == '-' || *p == '+')
+      negativeExp = *p++ == '-';
+    if (*p < '0' || *p > '9')
+      return false;
+    int e = 0;
+    for (; *p >= '0' && *p <= '9'; ++p)
+      if (e < 10000)
+        e = e * 10 + (*p - '0');
+    exponent += negativeExp ? -e : e;
+  }
+  if (*p || mantissa > (1ULL << 53) || exponent < -22 || exponent > 22)
+    return false;
+  double v = (double)mantissa;
+  v = exponent < 0 ? v / pow10[-exponent] : v * pow10[exponent];
+  value = negative ? -v : v;
+  return true;
+}
+
+}
+
 double xmlStringToDouble(const xmlChar *s) try
 {
   if (xmlStrEqual(s, BAD_CAST("Themed")))
     return 0.0;
 
+  double value;
+  if (fastStringToDouble((const char *)s, value))
+    return value;
   return boost::lexical_cast<double, const char *>((const char *)s);
 }
 catch (const boost::bad_lexical_cast &)
