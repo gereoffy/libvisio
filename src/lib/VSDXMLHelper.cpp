@@ -52,7 +52,8 @@ libvisio::VSDXRelationship::~VSDXRelationship()
 
 void libvisio::VSDXRelationship::rebaseTarget(const char *baseDir)
 {
-  std::string target(baseDir ? baseDir : "");
+  // (a target starting with "/" is a part name, from the package's root: not relative to baseDir)
+  std::string target(baseDir && (m_target.empty() || m_target[0] != '/') ? baseDir : "");
   if (!target.empty())
     target += "/";
   target += m_target;
