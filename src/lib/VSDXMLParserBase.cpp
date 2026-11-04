@@ -1239,19 +1239,14 @@ void libvisio::VSDXMLParserBase::readCharIX(xmlTextReaderPtr reader)
         const shared_ptr<xmlChar> stringValue(readStringData(reader), xmlFree);
         if (stringValue && !xmlStrEqual(stringValue.get(), BAD_CAST("Themed")))
         {
-          try
-          {
-            auto fontIndex = (unsigned)xmlStringToLong(stringValue);
-            std::map<unsigned, VSDName>::const_iterator iter = m_fonts.find(fontIndex);
-            if (iter != m_fonts.end())
-              font = iter->second;
-            else
-              font = VSDName(librevenge::RVNGBinaryData(stringValue.get(), xmlStrlen(stringValue.get())), VSD_TEXT_UTF8);
-          }
-          catch (const XmlParserException &)
-          {
+          long fontIndex = 0;
+          std::map<unsigned, VSDName>::const_iterator iter = m_fonts.end();
+          if (xmlTryStringToLong(stringValue.get(), fontIndex))   // (else a font's name)
+            iter = m_fonts.find((unsigned)fontIndex);
+          if (iter != m_fonts.end())
+            font = iter->second;
+          else
             font = VSDName(librevenge::RVNGBinaryData(stringValue.get(), xmlStrlen(stringValue.get())), VSD_TEXT_UTF8);
-          }
         }
       }
       break;
@@ -1520,21 +1515,16 @@ void libvisio::VSDXMLParserBase::readParaIX(xmlTextReaderPtr reader)
         const shared_ptr<xmlChar> stringValue(readStringData(reader), xmlFree);
         if (stringValue && !xmlStrEqual(stringValue.get(), BAD_CAST("Themed")))
         {
-          try
-          {
-            auto fontIndex = (unsigned)xmlStringToLong(stringValue);
-            if (fontIndex)
-            {
-              std::map<unsigned, VSDName>::const_iterator iter = m_fonts.find(fontIndex);
-              if (iter != m_fonts.end())
-                bulletFont = iter->second;
-              else
-                bulletFont = VSDName(librevenge::RVNGBinaryData(stringValue.get(), xmlStrlen(stringValue.get())), VSD_TEXT_UTF8);
-            }
-          }
-          catch (const XmlParserException &)
-          {
+          long fontIndex = 0;
+          if (!xmlTryStringToLong(stringValue.get(), fontIndex))   // (a font's name)
             bulletFont = VSDName(librevenge::RVNGBinaryData(stringValue.get(), xmlStrlen(stringValue.get())), VSD_TEXT_UTF8);
+          else if ((unsigned)fontIndex)
+          {
+            std::map<unsigned, VSDName>::const_iterator iter = m_fonts.find((unsigned)fontIndex);
+            if (iter != m_fonts.end())
+              bulletFont = iter->second;
+            else
+              bulletFont = VSDName(librevenge::RVNGBinaryData(stringValue.get(), xmlStrlen(stringValue.get())), VSD_TEXT_UTF8);
           }
         }
       }
@@ -2214,14 +2204,8 @@ int libvisio::VSDXMLParserBase::readExtendedColourData(Colour &value, long &idx,
     VSD_DEBUG_MSG(("VSDXMLParserBase::readColourData stringValue %s\n", (const char *)stringValue.get()));
     if (!xmlStrEqual(stringValue.get(), BAD_CAST("Themed")))
     {
-      try
-      {
-        value = xmlStringToColour(stringValue);
-      }
-      catch (const XmlParserException &)
-      {
+      if (!xmlTryStringToColour(stringValue.get(), value))   // (an index)
         idx = xmlStringToLong(stringValue);
-      }
       if (idx >= 0)
       {
         std::map<unsigned, Colour>::const_iterator iter = m_colours.find((unsigned)idx);
@@ -2260,15 +2244,9 @@ bool libvisio::VSDXMLParserBase::readColourOrColourIndex(Colour &value, long &id
     VSD_DEBUG_MSG(("VSDXMLParserBase::readExtendedColourData stringValue %s\n", (const char *)stringValue.get()));
     if (!xmlStrEqual(stringValue.get(), BAD_CAST("Themed")))
     {
-      try
-      {
-        value = xmlStringToColour(stringValue);
+      if (xmlTryStringToColour(stringValue.get(), value))
         return true;
-      }
-      catch (const XmlParserException &)
-      {
-        idx = xmlStringToLong(stringValue);
-      }
+      idx = xmlStringToLong(stringValue);   // (an index)
     }
   }
   return false;

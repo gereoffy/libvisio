@@ -9,6 +9,8 @@
 
 #include "libvisio_xml.h"
 
+#include <climits>
+
 #ifndef BOOST_LEXICAL_CAST_ASSUME_C_LOCALE
 #define BOOST_LEXICAL_CAST_ASSUME_C_LOCALE 1
 #endif
@@ -114,33 +116,44 @@ xmlReaderForStream(librevenge::RVNGInputStream *input, XMLErrorWatcher *const wa
 
 Colour xmlStringToColour(const xmlChar *s)
 {
+  Colour colour;
+  if (!xmlTryStringToColour(s, colour))
+  {
+    VSD_DEBUG_MSG(("Throwing XmlParserException\n"));
+    throw XmlParserException();
+  }
+  return colour;
+}
+
+// (without exceptions: a colour given as an index, "0" or "22", is no "#rrggbb" and was read as
+// one, then as the index; stencils of tens of thousands of such cells spent seconds unwinding)
+bool xmlTryStringToColour(const xmlChar *s, Colour &value)
+{
   if (xmlStrEqual(s, BAD_CAST("Themed")))
-    return Colour();
+  {
+    value = Colour();
+    return true;
+  }
   std::string str((const char *)s);
   if (str[0] == '#')
   {
     if (str.length() != 7)
-    {
-      VSD_DEBUG_MSG(("Throwing XmlParserException\n"));
-      throw XmlParserException();
-    }
+      return false;
     else
       str.erase(str.begin());
   }
   else
   {
     if (str.length() != 6)
-    {
-      VSD_DEBUG_MSG(("Throwing XmlParserException\n"));
-      throw XmlParserException();
-    }
+      return false;
   }
 
   std::istringstream istr(str);
   unsigned val = 0;
   istr >> std::hex >> val;
 
-  return Colour((val & 0xff0000) >> 16, (val & 0xff00) >> 8, val & 0xff, 0);
+  value = Colour((val & 0xff0000) >> 16, (val & 0xff00) >> 8, val & 0xff, 0);
+  return true;
 }
 
 Colour xmlStringToColour(const std::shared_ptr<xmlChar> &s)
@@ -150,21 +163,43 @@ Colour xmlStringToColour(const std::shared_ptr<xmlChar> &s)
 
 long xmlStringToLong(const xmlChar *s)
 {
-  using boost::lexical_cast;
-  using boost::bad_lexical_cast;
-  if (xmlStrEqual(s, BAD_CAST("Themed")))
-    return 0;
-
-  try
-  {
-    return boost::lexical_cast<long, const char *>((const char *)s);
-  }
-  catch (const boost::bad_lexical_cast &)
+  long value = 0;
+  if (!xmlTryStringToLong(s, value))
   {
     VSD_DEBUG_MSG(("Throwing XmlParserException\n"));
     throw XmlParserException();
   }
-  return 0;
+  return value;
+}
+
+// What lexical_cast<long> reads, [-+]digits within long's range, without its stream and its
+// exception (a font given by name, "Calibri", went through both: two exceptions per text run)
+bool xmlTryStringToLong(const xmlChar *s, long &value)
+{
+  if (xmlStrEqual(s, BAD_CAST("Themed")))
+  {
+    value = 0;
+    return true;
+  }
+  const char *p = (const char *)s;
+  bool negative = false;
+  if (*p == '-' || *p == '+')
+    negative = *p++ == '-';
+  if (*p < '0' || *p > '9')
+    return false;
+  const unsigned long long limit = negative ? (unsigned long long)LONG_MAX + 1 : (unsigned long long)LONG_MAX;
+  unsigned long long v = 0;
+  for (; *p >= '0' && *p <= '9'; ++p)
+  {
+    const unsigned d = (unsigned)(*p - '0');
+    if (v > (limit - d) / 10)
+      return false;
+    v = v * 10 + d;
+  }
+  if (*p)
+    return false;
+  value = negative ? (long)(0 - v) : (long)v;
+  return true;
 }
 
 long xmlStringToLong(const std::shared_ptr<xmlChar> &s)

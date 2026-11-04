@@ -43,9 +43,13 @@ xmlReaderForStream(librevenge::RVNGInputStream *input, XMLErrorWatcher *watcher 
 
 Colour xmlStringToColour(const xmlChar *s);
 Colour xmlStringToColour(const std::shared_ptr<xmlChar> &s);
+// The same without an exception: false where xmlStringToColour throws (value unchanged)
+bool xmlTryStringToColour(const xmlChar *s, Colour &value);
 
 long xmlStringToLong(const xmlChar *s);
 long xmlStringToLong(const std::shared_ptr<xmlChar> &s);
+// The same without an exception: false where xmlStringToLong throws (value unchanged)
+bool xmlTryStringToLong(const xmlChar *s, long &value);
 
 double xmlStringToDouble(const xmlChar *s);
 double xmlStringToDouble(const std::shared_ptr<xmlChar> &s);
