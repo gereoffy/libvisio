@@ -573,13 +573,27 @@ void libvisio::VSDXParser::extractBinaryData(librevenge::RVNGInputStream *input,
   const RVNGInputStreamPtr_t stream(input->getSubStreamByName(name));
   if (!stream)
     return;
-  while (true)
+  // In one read when the stream knows its size (a picture of several MB in 4 KB pieces was
+  // appended and reallocated thousands of times); else piece by piece
+  if (stream->seek(0, librevenge::RVNG_SEEK_END) == 0)
+  {
+    const long size = stream->tell();
+    stream->seek(0, librevenge::RVNG_SEEK_SET);
+    if (size > 0)
+    {
+      unsigned long numBytesRead = 0;
+      const unsigned char *buffer = stream->read((unsigned long)size, numBytesRead);
+      if (buffer && numBytesRead)
+        m_currentBinaryData.append(buffer, numBytesRead);
+    }
+  }
+  while (!stream->isEnd())
   {
     unsigned long numBytesRead;
     const unsigned char *buffer = stream->read(VSDX_DATA_READ_SIZE, numBytesRead);
     if (numBytesRead)
       m_currentBinaryData.append(buffer, numBytesRead);
-    if (stream->isEnd())
+    else
       break;
   }
   VSD_DEBUG_MSG(("%s\n", m_currentBinaryData.getBase64Data().cstr()));
