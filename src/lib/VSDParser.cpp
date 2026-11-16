@@ -731,9 +731,19 @@ void libvisio::VSDParser::_orderGeometries()
   if (sameOrder)
     return;
   std::map<unsigned, VSDGeometryList> sorted;
+  std::map<unsigned, unsigned> sortedChunkIds;
   for (size_t i = 0; i < order.size(); i++)
+  {
     sorted[(unsigned)i] = std::move(m_shape.m_geometries[order[i].second]);
+    std::map<unsigned, unsigned>::const_iterator chunkId = m_geomListChunkIds.find(order[i].second);
+    if (chunkId != m_geomListChunkIds.end())
+      sortedChunkIds[(unsigned)i] = chunkId->second;
+  }
   m_shape.m_geometries = std::move(sorted);
+  // The chunk ids follow their sections: a stencil's shape is not cleared after its first call, and
+  // a second one (at the end of the shape's stream) then finds them in order instead of sorting
+  // them again.
+  m_geomListChunkIds = std::move(sortedChunkIds);
   m_currentGeometryList = nullptr;
 }
 
